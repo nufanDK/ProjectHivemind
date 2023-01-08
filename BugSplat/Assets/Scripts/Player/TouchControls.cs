@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 public class TouchControls : GameLoop
 {
@@ -38,7 +39,7 @@ public class TouchControls : GameLoop
 
     // Debug UI stuff
     [Header("Debug stuff")]
-    public Text DebugText;
+    public TextMeshProUGUI DebugText;
     public GameObject TouchUIDotCurrent;
     public GameObject TouchUIDotRecorded;
     public Transform TouchCanvas;
@@ -50,6 +51,8 @@ public class TouchControls : GameLoop
 
     public Image testing;
 
+
+    public bool _touchBegan = false;
 
     Vector3 targetPos;
     Vector3 startPos;
@@ -125,76 +128,78 @@ public class TouchControls : GameLoop
        
         UIPrefab.transform.up = targetPos;
 
-        if (Time.timeScale < 1)
+        
+
+        if (PlayerControlOverrideSO.Value == false)
         {
-            Debug.Log("TIMESCALE = " + Time.timeScale);
-        }
-        else
-        {
-            if (PlayerControlOverrideSO.Value == false)
+            if (IsStunned.Value == false)
             {
-                if (IsStunned.Value == false)
+                // Detect Touch
+                if (Input.touchCount <= _recordPositions.Length)
                 {
-                    // Detect Touch
-                    if (Input.touchCount <= _recordPositions.Length)
+                    for (int i = 0; i < Input.touchCount; i++)
                     {
-                        for (int i = 0; i < Input.touchCount; i++)
+                        Touch touch = Input.GetTouch(i);
+
+
+                        Vector3 touchPosition = touch.position;
+
+
+                        switch (touch.phase)
                         {
-                            Touch touch = Input.GetTouch(i);
+                            case TouchPhase.Began:
+                                _touchBegan = true;
+                                DebugText.text = "TOUCH BEGAN";
+                                break;
+                            
+                            case TouchPhase.Moved:
+                                if (touchPosition.x < _uiOffset.x || touchPosition.y > _uiOffset.y)
+                                {
+                                    BeginMove(touchPosition, i);
+                                    DebugText.text = "TOUCH MOVE";
+                                }
 
-
-                            Vector3 touchPosition = touch.position;
-
-
-                            switch (touch.phase)
-                            {
-                                case TouchPhase.Moved:
-                                    if (touchPosition.x < _uiOffset.x || touchPosition.y > _uiOffset.y)
-                                    {
-                                        BeginMove(touchPosition, i);
-                                    }
-
-                                    break;
-
-                                case TouchPhase.Ended:
-                                    EndMove(touchPosition, i);
-                                    break;
-                            }
-
+                                break;
+                                    
+                            case TouchPhase.Ended:
+                                EndMove(touchPosition, i);
+                                DebugText.text = "TOUCH ENDED";
+                                break;
                         }
+                            
                     }
+                }
 
 
 
 
-                    // Simulate touch with mouse, if mouse present
-                    if (Input.mousePresent)
+                // Simulate touch with mouse, if mouse present
+                if (Input.mousePresent)
+                {
+                    Vector3 inputPosition = Input.mousePosition;
+
+                    if (Input.GetMouseButton(0))
                     {
-                        Vector3 inputPosition = Input.mousePosition;
-
-                        if (Input.GetMouseButton(0))
-                        {
 
                             if (inputPosition.x < _uiOffset.x || inputPosition.y > _uiOffset.y)
                             {
-                                BeginMove(inputPosition, 0);
+                                BeginMove(inputPosition,0);
                             }
 
 
-                        }
-                        if (Input.GetMouseButtonUp(0))
-                        {
-                            EndMove(Input.mousePosition, 0);
-                        }
+                    }
+                    if (Input.GetMouseButtonUp(0))
+                    {
+                                EndMove(Input.mousePosition,0);
                     }
                 }
             }
-            else
-            {
-                MoveDirectionSO.Value = Vector3.zero;
-                ClearInputUI();
-
-            }
+        }
+        else
+        {
+             MoveDirectionSO.Value = Vector3.zero;
+             ClearInputUI();
+             
         }
     }
 
@@ -278,7 +283,7 @@ public class TouchControls : GameLoop
         if(_recordPositions[index]) // Record first position of touch
         {
             _recordedInputPositions[index] = touchPos;
-            _inputTime[index] = Time.time;
+            _inputTime[index] = Time.unscaledTime;
             _recordPositions[index] = false;
 
             // UI Debug Stuff
@@ -311,22 +316,34 @@ public class TouchControls : GameLoop
 
         ClearInputUI();
 
-        // Check if TAP has happened
-        if (Vector3.Distance(_currentInputPosition[index][_inputFrames[index]], _recordedInputPositions[index]) < _runtimeInputMin)
-        {
-            float endTime = Time.time - _inputTime[index];
+        Touch touch = Input.GetTouch(index);
+        Debug.Log("runtimeInputMin: " + _runtimeInputMin);
+        Vector2 test = new Vector2(_currentInputPosition[index][_inputFrames[index]].x, _currentInputPosition[index][_inputFrames[index]].y);
 
-            if (endTime < InputSwipeTapTimeSO.Value)
-            {
-                //Debug.Log("ATTACKED!");
-                AttackTapSO.Raise(PlayerGraphics);
-            }
-        }
-        // Check if SWIPE has happened
-        else if (Vector3.Distance(_currentInputPosition[index][0], _currentInputPosition[index][_inputFrames[index]]) > _inputSwipeThreshold)
+        // Check if TAP has happened
+        //
+        if (_touchBegan == true)
         {
-            //DebugText.text = "DODGED!";
-            Swipe.Raise(PlayerGraphics);
+            if (test.magnitude == 0 || Vector2.Distance(touch.rawPosition, test) < _runtimeInputMin)
+            {
+                {
+                    float endTime = Time.unscaledTime - _inputTime[index];
+                    Debug.Log("RAWposition: " + touch.rawPosition.magnitude);
+                    Debug.Log("currentPosition: " + _currentInputPosition[index][_inputFrames[index]].magnitude);
+                    Debug.Log("DISTANCE: " + Vector2.Distance(touch.rawPosition, test));
+                    //          if (endTime < InputSwipeTapTimeSO.Value)
+                    //          {
+                    //Debug.Log("ATTACKED!");
+                    AttackTapSO.Raise(PlayerGraphics);
+                    //           }
+                }
+            }
+            // Check if SWIPE has happened
+            else if (Vector3.Distance(_currentInputPosition[index][0], _currentInputPosition[index][_inputFrames[index]]) > _inputSwipeThreshold)
+            {
+                //DebugText.text = "DODGED!";
+                Swipe.Raise(PlayerGraphics);
+            }
         }
 
         // Check if MOVE has happened
