@@ -1,4 +1,4 @@
-# ProjectBugSplat
+# ProjectHivemind
 The graduation game for Team 5 at DADIU 2019.
 
 Made for Unity version 2019.1.8f1
